@@ -1,0 +1,249 @@
+====================================================================================================
+                        FLEET MANAGEMENT SYSTEM - OBJECT-ORIENTED ANALYSIS
+====================================================================================================
+Course   : CSC 120 - Project 2 (Fleet Management)
+Author   : Maxime Manuel Afonso
+See also : FleetManagement_Design.txt        the object-oriented design made from this analysis
+           FleetManagement_ClassDiagram.jpg  the UML class diagram of the design
+
+
+1. THE PROBLEM
+----------------------------------------------------------------------------------------------------
+The Commodore of the Coconut Grove Sailing Club needs a simple program to track the costs of the
+boats that the club owns: sailing boats and coach (power) boats. Boats need maintenance, and to
+control the expenditure the Commodore has a policy:
+
+        The club may not spend more on a boat than it cost to buy the boat.
+
+The program keeps the data of the fleet from one run to the next. It prints the boat inventory,
+adds and removes boats, and gives or refuses permission each time money is to be spent on a boat.
+
+
+2. WHAT THE PROGRAM MUST DO
+----------------------------------------------------------------------------------------------------
+2.1 Information held about each boat
+      - the type of boat: sailing or power
+      - the name of the boat
+      - the year of manufacture
+      - the make/model
+      - the length in feet (up to 100')
+      - the purchase price (less than a million dollars)
+      - the expenses maintaining the boat
+
+2.2 The fleet
+      - The club owns an arbitrary number of boats.
+      - The boats are reported in the order in which they joined the fleet: the order of the lines
+        of the CSV file, then the order in which boats were added.
+
+2.3 Files
+      - Initialising run: the fleet data is provided in a Comma Separated Values (CSV) text file,
+        such as FleetData.csv, whose name is given as a command line parameter. Each line of the
+        file describes one boat:
+                type,name,year of manufacture,make/model,length,purchase price
+        for example
+                POWER,Big Brother,2019,Mako,20,12989.56
+        The file holds no expenses: nothing has been spent yet on a boat that comes from it.
+      - Upon exiting, the program saves the fleet data in serialized form in a file called
+        FleetData.db.
+      - Subsequent ("normal") runs: no command line parameter is given, and the fleet data is read
+        from FleetData.db instead.
+
+2.4 Menu
+    Once the fleet data is loaded the program offers a menu, again and again until the user exits:
+      (P)rint     print the boat inventory
+      (A)dd       add a boat
+      (R)emove    remove a boat
+      (E)xpense   request permission to spend money on a boat, subject to the Commodore's policy
+      e(X)it      exit the program
+
+2.5 The Commodore's policy
+      - A request to spend an amount on a boat is authorized if the money already spent on the boat
+        plus the amount is not more than the purchase price of the boat. The amount is then added
+        to the expenses of the boat, and the program reports the total spent on the boat so far.
+      - Otherwise the request is not permitted: nothing is spent, and the program reports how much
+        is left to spend on the boat (its purchase price less its expenses).
+      - Example from the assignment: Moon Glow was bought for $5500.00.
+                spend 3456.78    authorized       "$3456.78 spent"            3456.78 <= 5500.00
+                spend 2000       authorized       "$5456.78 spent"            5456.78 <= 5500.00
+                spend 250        not permitted    "only $43.22 left to spend" 5706.78 >  5500.00
+
+2.6 User friendliness, and what may be assumed
+      - Menu options are accepted in upper and lower case.
+      - Boat names are accepted without regard for case.
+      - An option that is not in the menu is reported ("Invalid menu option, try again") and the
+        menu is offered again.
+      - When the boat to remove, or to spend on, is not in the fleet, this is reported
+        ("Cannot find boat" and the name) and the program goes back to the menu.
+      - A boat is added by typing a string that looks like one line of the CSV file.
+      - The boat data in the CSV file is correctly formatted, within the limits given in 2.1.
+      - Numeric input is syntactically correct.
+
+2.7 The boat inventory (fleet report)
+    One line for each boat with its type, name, year of manufacture, make/model, length, the price
+    paid for it and the money spent on it, then one line with the totals paid and spent for the
+    whole fleet.
+
+
+3. FINDING THE OBJECTS
+----------------------------------------------------------------------------------------------------
+The nouns of the problem are the candidates for the classes and for their attributes.
+
+  Noun in the problem                     What it becomes
+  --------------------------------------  ----------------------------------------------------------
+  Commodore, club                         Outside the program: the people who use it and who own
+                                          the boats. No class.
+  program (Fleet Management System)       The application: the main class FleetManagement. It talks
+                                          to the user (menu, keyboard, screen) and handles the
+                                          files.
+  boat (sailing boat, power boat)         Class Boat: the main object of the problem.
+  type of boat (sailing, power)           Attribute of a Boat. There are only two fixed values, so
+                                          it is an enumerated type, BoatType - not two subclasses
+                                          of Boat, because sailing boats and power boats hold the
+                                          same information and are treated in the same way.
+  name, year of manufacture, make/model,  Attributes of a Boat.
+  length, purchase price, expenses
+  costs, money, expenditure, maintenance  Not objects of their own: they are the purchase price
+                                          and the expenses of a Boat.
+  policy (the Commodore's policy)         A rule about the money of one boat: a behaviour of Boat,
+                                          which knows its purchase price and its expenses.
+  fleet, boat inventory                   Class Fleet: the boats that the club owns, any number of
+                                          them.
+  fleet data, CSV file, FleetData.db,     The fleet as it is stored outside the program. Reading
+  command line parameter                  and writing the files are behaviours of FleetManagement.
+  menu, option, user, keyboard input      The user interface: behaviours of FleetManagement.
+  fleet report, total                     What the Fleet tells about itself, made of what each
+                                          Boat tells about itself.
+
+Classes found:   FleetManagement,   Fleet,   Boat,   BoatType.
+
+
+4. WHAT EACH OBJECT KNOWS AND DOES
+----------------------------------------------------------------------------------------------------
+The verbs of the problem (track, hold, spend, provide, save, read, print, add, remove, request,
+exit) give the behaviours. Each behaviour is given to the object that knows the information that
+the behaviour needs.
+
+4.1 Boat - one boat of the club
+    Knows (attributes)
+      - its type (a BoatType), name, year of manufacture, make/model, length in feet and purchase
+        price, which never change once the boat exists
+      - its expenses: the money spent so far maintaining it, nothing for a new boat
+    Does (behaviours)
+      - is created from its type, name, year of manufacture, make/model, length and purchase price
+      - tells whether it has a given name, without regard for case
+      - tells its purchase price, and its expenses
+      - tells how much may still be spent on it
+      - answers a request to spend an amount: it applies the Commodore's policy and, if the
+        expense is authorized, adds the amount to its expenses
+      - describes itself as one line of the fleet report
+
+4.2 Fleet - the boats of the club
+    Knows (attributes)
+      - its boats: any number of Boat objects, in the order in which they joined the fleet
+    Does (behaviours)
+      - starts with no boats
+      - adds a boat
+      - finds a boat by its name, without regard for case
+      - removes a boat by its name, without regard for case
+      - totals the purchase prices, and the expenses, of its boats
+      - describes itself as the fleet report: one line for each boat, then the totals
+
+4.3 BoatType - the type of a boat
+    One of two values: SAILING or POWER.
+
+4.4 FleetManagement - the program
+    Knows
+      - nothing that changes: only fixed values, such as the name of the file FleetData.db and
+        the letters of the menu options. The boats belong to the Fleet object.
+    Does (behaviours)
+      - displays the welcome message and the exit message
+      - loads the fleet from the CSV file named on the command line (initialising run), or from
+        FleetData.db (normal run)
+      - makes a Boat from one line of CSV data, which comes from the CSV file or from the keyboard
+      - displays the menu, and reads and checks the option of the user
+      - carries out the options by asking the Fleet and its Boats: print, add, remove, expense
+      - saves the fleet in FleetData.db when the user exits
+    It is the only class that reads the keyboard, writes on the screen and handles the files.
+
+
+5. HOW THE CLASSES ARE RELATED
+----------------------------------------------------------------------------------------------------
+
+      +-----------------+   uses    +-------+  has 0..*   +------+   has 1    +----------+
+      | FleetManagement |- - - - - >| Fleet |<>---------->| Boat |----------->| BoatType |
+      +-----------------+           +-------+             +------+            +----------+
+               |                                              ^
+               + - - - - - - - - - - creates - - - - - - - - -+
+
+  - FleetManagement uses one Fleet: it loads it, hands it to the menu options, and saves it.
+  - A Fleet HAS boats: any number of Boat objects (has-a).
+  - A Boat HAS a type: one BoatType value (has-a).
+  - FleetManagement creates the Boat objects from CSV data, and gives them to the Fleet.
+  - No inheritance (is-a) is needed: there is only one kind of Boat (see 3), and nothing else in
+    the problem is a special case of something more general.
+  - A Fleet is saved in FleetData.db with all its Boats, and is read back whole.
+
+
+6. HOW THE OBJECTS WORK TOGETHER
+----------------------------------------------------------------------------------------------------
+6.1 Start of an initialising run (the command line names the CSV file)
+      1. FleetManagement displays the welcome message.
+      2. FleetManagement opens the CSV file and creates an empty Fleet.
+      3. For each line of the file, FleetManagement makes a Boat from the line and asks the Fleet
+         to add it.
+      4. FleetManagement closes the file and offers the menu.
+
+6.2 Start of a normal run (no command line parameter)
+      1. FleetManagement displays the welcome message.
+      2. FleetManagement reads the Fleet, with its Boats and their expenses, from FleetData.db,
+         closes the file and offers the menu.
+
+6.3 Print
+      1. FleetManagement asks the Fleet for its report.
+      2. The Fleet asks each Boat for its line of the report, and adds the line of the totals.
+      3. FleetManagement displays the report.
+
+6.4 Add
+      1. FleetManagement asks the user for the CSV data of the new boat.
+      2. FleetManagement makes a Boat from the data and asks the Fleet to add it.
+
+6.5 Remove
+      1. FleetManagement asks the user for the name of the boat.
+      2. FleetManagement asks the Fleet to remove the boat that has this name. The Fleet asks its
+         Boats whether they have the name, and removes the one that does.
+      3. If the Fleet has no such boat, FleetManagement displays "Cannot find boat" and the name.
+
+6.6 Expense
+      1. FleetManagement asks the user for the name of the boat.
+      2. FleetManagement asks the Fleet to find the boat that has this name. If the Fleet has no
+         such boat, FleetManagement displays "Cannot find boat" and the name, and the option ends.
+      3. FleetManagement asks the user for the amount.
+      4. FleetManagement asks the Boat to spend the amount. The Boat applies the Commodore's
+         policy.
+      5. Authorized: the Boat has added the amount to its expenses, and FleetManagement displays
+         the total spent on the boat.
+         Not permitted: the Boat is unchanged, and FleetManagement displays how much is left to
+         spend on the boat.
+
+6.7 Exit
+      1. FleetManagement saves the Fleet, with its Boats and their expenses, in FleetData.db and
+         closes the file.
+      2. FleetManagement displays the exit message.
+
+
+7. CHECK: EVERY REQUIREMENT HAS AN OBJECT RESPONSIBLE FOR IT
+----------------------------------------------------------------------------------------------------
+  Requirement                                               Responsible
+  --------------------------------------------------------  ----------------------------------------
+  Hold the information about each boat (2.1)                Boat, BoatType
+  Arbitrary number of boats (2.2)                           Fleet
+  Read the CSV file named on the command line (2.3)         FleetManagement
+  Save the fleet in FleetData.db, and read it back (2.3)    FleetManagement
+  Menu, options in upper and lower case (2.4, 2.6)          FleetManagement
+  Print the boat inventory (2.4, 2.7)                       Fleet and Boat make the report,
+                                                            FleetManagement displays it
+  Add a boat typed as CSV data (2.4, 2.6)                   FleetManagement makes the Boat,
+                                                            Fleet adds it
+  Remove a boat, name without regard for case (2.4, 2.6)    Fleet (each Boat compares the names)
+  Request to spend, the Commodore's policy (2.4, 2.5)       Boat (found by the Fleet)
+  Invalid menu option, boat not found (2.6)                 FleetManagement displays the messages

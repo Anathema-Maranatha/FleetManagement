@@ -1,0 +1,584 @@
+====================================================================================================
+                         FLEET MANAGEMENT SYSTEM - OBJECT-ORIENTED DESIGN
+====================================================================================================
+Course   : CSC 120 - Project 2 (Fleet Management)
+Author   : Maxime Manuel Afonso
+See also : FleetManagement_Analysis.txt      the object-oriented analysis that this design follows
+           FleetManagement_ClassDiagram.jpg  the UML class diagram of this design
+Program  : FleetManagement.java, Fleet.java, Boat.java, BoatType.java
+
+
+1. FROM THE ANALYSIS TO THE DESIGN
+----------------------------------------------------------------------------------------------------
+The four classes found in the analysis become four Java types, each in its own file:
+
+  FleetManagement   class   The main class: the user interface (menu, keyboard, screen) and all the
+                            file handling. All its methods are static. It has constants only.
+  Fleet             class   The boats of the club, held in an ArrayList. Serializable.
+  Boat              class   One boat: its data, the Commodore's policy and its line of the fleet
+                            report. Serializable.
+  BoatType          enum    The type of a boat: SAILING or POWER.
+
+How the design follows the hints and the restriction of the assignment:
+
+  Assignment                                           Design
+  ---------------------------------------------------  ---------------------------------------------
+  Arbitrary number of boats (hint: use an ArrayList)   Fleet has  boats : ArrayList<Boat>
+  Type of boat, sailing or power (hint: an enum)       enum BoatType with the values SAILING and
+                                                       POWER; Boat has  type : BoatType
+  Year of manufacture (hint: a suitable data type)     Boat has  yearOfManufacture : short
+                                                       A year is a whole number, and it fits in a
+                                                       short (up to 32767).
+  Length in feet, up to 100' (hint: a suitable data    Boat has  lengthInFeet : byte
+  type)                                                A whole number of at most 100 fits in a byte
+                                                       (up to 127).
+  Purchase price, less than a million dollars (hint:   Boat has  purchasePrice : double
+  double)
+  Expenses maintaining the boat (hint: double)         Boat has  expenses : double
+  Name of the CSV file given as a command line         main takes it from
+  parameter                                            args[CSV_FILE_NAME_ARGUMENT]
+  Fleet data saved in serialized form in FleetData.db  Fleet and Boat implement Serializable. The
+                                                       Fleet object is written with one writeObject
+                                                       and read back with one readObject.
+  Hint: all the file handling methods in the main      loadFleetFromCsvFile, loadFleetFromDbFile and
+  class                                                saveFleetToDbFile are in FleetManagement.
+  Restriction: only the class containing the main      The only Scanner is keyboard, a local
+  method may have a Scanner object                     variable of main. It is passed as a parameter
+                                                       to the methods of FleetManagement that read
+                                                       input. Fleet and Boat never read the keyboard
+                                                       and never print: they return values.
+  No global variables (marking scheme)                 Outside the methods there are only private
+                                                       static final constants, and the private
+                                                       instance variables of Fleet and Boat.
+
+
+2. CLASS DIAGRAM
+----------------------------------------------------------------------------------------------------
+The UML class diagram is in FleetManagement_ClassDiagram.jpg. It shows every constant, variable and
+method of this design. In short:
+
+      +-----------------+   uses    +-------+ 1     0..* +------+ 0..*     1 +----------+
+      | FleetManagement |- - - - - >| Fleet |<>--------->| Boat |----------->| BoatType |
+      +-----------------+           +-------+   boats    +------+    type    +----------+
+               |                                             ^
+               + - - - - - - - - - - creates - - - - - - - - +
+
+      Fleet and Boat implement the interface Serializable.
+
+  - FleetManagement uses a Fleet (dependency): fleet is a local variable of main and a parameter
+    of the methods of the menu.
+  - A Fleet is made of 0 or more Boats (has-a): the instance variable boats.
+  - A Boat has one BoatType (has-a): the instance variable type.
+  - FleetManagement creates the Boats (dependency): the method createBoat.
+
+
+3. ENUM BoatType                                                                    (BoatType.java)
+----------------------------------------------------------------------------------------------------
+The types of boat owned by the club.
+
+    SAILING     a sailing boat
+    POWER       a coach (power) boat
+
+The values are spelled as the types are in the CSV file. A type read from CSV data is therefore
+converted with BoatType.valueOf, and a type is printed in the fleet report as its own name.
+
+
+4. CLASS Boat   implements Serializable                                                 (Boat.java)
+----------------------------------------------------------------------------------------------------
+One boat of the fleet: its type, name, year of manufacture, make/model, length and purchase price,
+and the expenses made maintaining it. A boat applies the Commodore's policy.
+
+4.1 Constants (private static final)
+
+    serialVersionUID   : long   = 1L
+        Version of the serialized form of a Boat.
+    CENTS_PER_DOLLAR   : int    = 100
+        Used to compare amounts of money in whole cents.
+    DESCRIPTION_FORMAT : String = "%-7s %-20s %4d %-10s %3d'"
+        Format of the type, name, year of manufacture, make/model and length of a boat, in columns.
+    DESCRIPTION_WIDTH  : int    = 49
+        Number of characters of a description formatted with DESCRIPTION_FORMAT.
+    REPORT_LINE_FORMAT : String = "%-" + DESCRIPTION_WIDTH + "s : Paid $%9.2f : Spent $%9.2f"
+        Format of one line of the fleet report: a description, then an amount paid and an amount
+        spent, of up to 999999.99 dollars each.
+
+4.2 Instance variables (private)
+
+    type              : BoatType    the type of the boat, SAILING or POWER                   (final)
+    name              : String      the name of the boat                                     (final)
+    yearOfManufacture : short       the year in which the boat was built                     (final)
+    makeAndModel      : String      the make/model of the boat                               (final)
+    lengthInFeet      : byte        the length of the boat in feet, at most 100              (final)
+    purchasePrice     : double      the price paid for the boat, in dollars                  (final)
+    expenses          : double      the money spent so far maintaining the boat, in dollars
+
+4.3 Methods
+
+    public Boat(BoatType type, String name, short yearOfManufacture, String makeAndModel,
+                byte lengthInFeet, double purchasePrice)
+        Constructor: creates a boat on which nothing has been spent yet.
+        1. Store the six parameters in the instance variables that have the same names.
+        2. expenses = 0.0
+
+    public boolean hasName(String otherName)
+        Checks whether this boat has a given name, without regard for case.
+        1. Return true if name is the same as otherName ignoring case (equalsIgnoreCase),
+           false otherwise.
+
+    public double getPurchasePrice()
+        1. Return purchasePrice.
+
+    public double getExpenses()
+        1. Return expenses.
+
+    public double getRemainingBudget()
+        Gets the money that may still be spent on the boat under the Commodore's policy.
+        1. Return toCents(purchasePrice) less toCents(expenses), divided by CENTS_PER_DOLLAR to
+           get dollars again.
+
+    public boolean spend(double amount)
+        Requests permission to spend money on the boat: applies the Commodore's policy.
+        Local variable: authorized : boolean
+        1. authorized = true if toCents(expenses + amount) <= toCents(purchasePrice), false
+           otherwise.
+           The amounts are compared in whole cents because a double cannot hold every amount
+           exactly: 5456.78 + 43.22 gives 5500.000000000001, which is more than 5500.
+        2. If authorized: add amount to expenses.
+        3. Return authorized.
+
+    public String toString()
+        Formats the boat as one line of the fleet report.
+        Local variable: description : String
+        1. description = type, name, yearOfManufacture, makeAndModel and lengthInFeet formatted
+           with DESCRIPTION_FORMAT.
+        2. Return formatReportLine(description, purchasePrice, expenses).
+
+    public static String formatReportLine(String description, double amountPaid, double amountSpent)
+        Formats one line of a fleet report. Every line of a report is made here, so that the
+        amounts are in the same columns for a boat and for the totals of a fleet.
+        1. Return description, amountPaid and amountSpent formatted with REPORT_LINE_FORMAT.
+
+    private static long toCents(double dollars)
+        Converts an amount in dollars to whole cents, so that amounts can be compared exactly.
+        1. Return dollars multiplied by CENTS_PER_DOLLAR, rounded to the nearest whole number
+           (Math.round).
+
+
+5. CLASS Fleet   implements Serializable                                               (Fleet.java)
+----------------------------------------------------------------------------------------------------
+The fleet of the club: an arbitrary number of boats, kept in the order in which they joined the
+fleet. The fleet finds its boats by name and reports what they cost to buy and to maintain.
+
+5.1 Constants (private static final)
+
+    serialVersionUID  : long   = 1L
+        Version of the serialized form of a Fleet.
+    REPORT_TITLE      : String = "Fleet report:"
+        First line of the fleet report.
+    REPORT_LINE_START : String = "\n    "
+        Starts every line under the title: a new line, then four spaces of indentation.
+    TOTAL_LABEL       : String = "Total"
+        Description on the last line of the report, in front of the totals.
+
+5.2 Instance variable (private)
+
+    boats : ArrayList<Boat>         the boats, in the order in which they joined the fleet   (final)
+
+5.3 Methods
+
+    public Fleet()
+        Constructor: creates a fleet with no boats.
+        1. boats = a new, empty ArrayList.
+
+    public void addBoat(Boat boat)
+        Adds a boat at the end of the fleet.
+        1. Add boat at the end of boats.
+
+    public Boat findBoat(String boatName)
+        Finds the boat that has a given name, without regard for case.
+        Local variables: boatFound : Boat, index : int
+        1. boatFound = null
+        2. index = 0
+        3. While boatFound is null and index is less than the number of boats:
+           3.1 If the boat at position index of boats has the name (hasName(boatName)):
+               boatFound = that boat.
+           3.2 Add 1 to index.
+        4. Return boatFound: the first boat that has the name, or null if no boat has it.
+
+    public boolean removeBoat(String boatName)
+        Removes the boat that has a given name, without regard for case.
+        Local variable: boat : Boat
+        1. boat = findBoat(boatName)
+        2. If boat is not null: remove boat from boats.
+        3. Return true if boat is not null (it was found and removed), false otherwise.
+
+    public double getTotalPurchasePrice()
+        Gets the total of the prices paid for the boats of the fleet.
+        Local variable: totalPurchasePrice : double
+        1. totalPurchasePrice = 0.0
+        2. For each boat of boats: add boat.getPurchasePrice() to totalPurchasePrice.
+        3. Return totalPurchasePrice.
+
+    public double getTotalExpenses()
+        Gets the total of the money spent maintaining the boats of the fleet.
+        Local variable: totalExpenses : double
+        1. totalExpenses = 0.0
+        2. For each boat of boats: add boat.getExpenses() to totalExpenses.
+        3. Return totalExpenses.
+
+    public String toString()
+        Formats the fleet as the fleet report: a title, one line for each boat, and a last line
+        with the totals.
+        Local variable: report : StringBuilder
+        1. report = REPORT_TITLE
+        2. For each boat of boats: append REPORT_LINE_START to report, then boat. What is
+           appended for boat is its line of the report, made by the toString method of Boat.
+        3. Append REPORT_LINE_START to report, then
+           Boat.formatReportLine(TOTAL_LABEL, getTotalPurchasePrice(), getTotalExpenses()).
+        4. Return report as a String.
+
+
+6. CLASS FleetManagement   (the main class)                                  (FleetManagement.java)
+----------------------------------------------------------------------------------------------------
+The program: it loads the fleet, offers the menu until the user exits, and saves the fleet. It does
+all the keyboard input, all the output on the screen and all the file handling.
+
+6.1 Constants (private static final)
+
+    DB_FILE_NAME           : String = "FleetData.db"
+        Name of the object file in which the fleet is saved, and from which a normal run loads it.
+    CSV_FILE_NAME_ARGUMENT : int    = 0
+        Position of the name of the CSV file among the command line parameters.
+    CSV_SEPARATOR          : String = ","
+        Separates the fields of a line of CSV data.
+    NUMBER_OF_CSV_FIELDS   : int    = 6
+        Number of fields in a line of CSV data.
+    TYPE_FIELD             : int    = 0
+    NAME_FIELD             : int    = 1
+    YEAR_FIELD             : int    = 2
+    MAKE_AND_MODEL_FIELD   : int    = 3
+    LENGTH_FIELD           : int    = 4
+    PRICE_FIELD            : int    = 5
+        Positions of the type, name, year of manufacture, make/model, length and purchase price
+        in a line of CSV data.
+    PRINT_OPTION           : char   = 'P'
+    ADD_OPTION             : char   = 'A'
+    REMOVE_OPTION          : char   = 'R'
+    EXPENSE_OPTION         : char   = 'E'
+    EXIT_OPTION            : char   = 'X'
+        The options of the menu, as upper case letters.
+    NO_OPTION              : char   = ' '
+        Stands for the option when the user typed nothing.
+    PROMPT_WIDTH           : int    = 44
+        Number of columns in which a prompt is displayed.
+    PROMPT_FORMAT          : String = "%-" + PROMPT_WIDTH + "s: "
+        Format of a prompt, "%-44s: ": the prompt left-justified in PROMPT_WIDTH columns, then a
+        colon and a space.
+    BOAT_NOT_FOUND_MESSAGE : String = "Cannot find boat "
+        Start of the message displayed when the fleet has no boat with the name typed.
+
+6.2 Variables
+
+    None outside the methods. The Scanner keyboard and the Fleet fleet are local variables of
+    main; they are passed as parameters to the methods that need them.
+
+6.3 Structure of the methods (which method calls which)
+
+    main
+     |-- displayWelcomeMessage
+     |-- loadFleetFromCsvFile                 initialising run
+     |    `-- createBoat
+     |-- loadFleetFromDbFile                  normal run
+     |-- processMenuOptions
+     |    |-- getMenuOption
+     |    |    `-- getOptionLetter
+     |    |         `-- getUserInput
+     |    |-- printFleet                      asks the Fleet for its report (toString)
+     |    |-- addBoat                         asks the Fleet to add the new Boat (addBoat)
+     |    |    |-- getUserInput
+     |    |    `-- createBoat
+     |    |-- removeBoat                      asks the Fleet to remove the Boat (removeBoat)
+     |    |    `-- getUserInput
+     |    `-- requestExpense                  asks the Fleet for the Boat (findBoat), and the Boat
+     |         `-- getUserInput               to spend (spend, getExpenses, getRemainingBudget)
+     |-- saveFleetToDbFile
+     `-- displayExitMessage
+
+6.4 Methods
+
+    public static void main(String[] args)
+        Runs the Fleet Management System. args holds the name of the CSV file for an initialising
+        run, and nothing for a normal run.
+        Local variables: keyboard : Scanner (the only Scanner of the program), fleet : Fleet
+        1. keyboard = a new Scanner that reads the keyboard (System.in).
+        2. displayWelcomeMessage()
+        3. If there is a command line parameter (args.length > 0), it is an initialising run:
+               fleet = loadFleetFromCsvFile(args[CSV_FILE_NAME_ARGUMENT])
+           Otherwise it is a normal run:
+               fleet = loadFleetFromDbFile(DB_FILE_NAME)
+        4. processMenuOptions(keyboard, fleet)
+        5. saveFleetToDbFile(fleet, DB_FILE_NAME)
+        6. If a file cannot be read in step 3 or written in step 5 (IOException), the steps that
+           remain up to step 5 are skipped and this is displayed:
+               "ERROR: Cannot read or write the fleet data: " and the reason
+           If the object file does not hold a fleet in step 3 (ClassNotFoundException), steps 4
+           and 5 are skipped and this is displayed:
+               "ERROR: " DB_FILE_NAME " does not hold a fleet: " and the reason
+        7. displayExitMessage()
+
+    private static void displayWelcomeMessage()
+        1. Display "Welcome to the Fleet Management System".
+        2. Display "--------------------------------------", a line of dashes of the same length.
+
+    private static Fleet loadFleetFromCsvFile(String csvFileName) throws IOException
+        Loads a fleet from a text file of comma separated values, in which every line holds the
+        data of one boat.
+        Local variables: csvFile : BufferedReader, fleet : Fleet, csvLine : String
+        1. Open the text file: csvFile = a new BufferedReader on a new FileReader(csvFileName).
+        2. fleet = a new Fleet, with no boats.
+        3. csvLine = the first line of csvFile (readLine).
+        4. While csvLine is not null (null means that the end of the file has been reached):
+           4.1 If csvLine is not blank: fleet.addBoat(createBoat(csvLine))
+           4.2 csvLine = the next line of csvFile (readLine).
+        5. Close csvFile. This is done in a finally block, so that the file is closed whether or
+           not it could be read.
+        6. Return fleet.
+
+    private static Fleet loadFleetFromDbFile(String dbFileName)
+            throws IOException, ClassNotFoundException
+        Loads the fleet that was saved in serialized form in an object file.
+        Local variables: dbFile : ObjectInputStream, fleet : Fleet
+        1. Open the object file: dbFile = a new ObjectInputStream on a new
+           FileInputStream(dbFileName).
+        2. fleet = dbFile.readObject(), cast to Fleet. The fleet and all its boats are read in one
+           shot.
+        3. Close dbFile. This is done in a finally block, so that the file is closed whether or
+           not it could be read.
+        4. Return fleet.
+
+    private static void saveFleetToDbFile(Fleet fleet, String dbFileName) throws IOException
+        Saves a fleet in serialized form in an object file.
+        Local variable: dbFile : ObjectOutputStream
+        1. Open the object file: dbFile = a new ObjectOutputStream on a new
+           FileOutputStream(dbFileName).
+        2. dbFile.writeObject(fleet). The fleet and all its boats are written in one shot.
+        3. Close dbFile. This is done in a finally block, so that the file is closed whether or
+           not it could be written.
+
+    private static Boat createBoat(String csvData)
+        Creates a boat from one line of CSV data, e.g. SAILING,Finesse,1974,Tartan,34,9200.50
+        Used for the lines of the CSV file and for the data typed to add a boat.
+        Local variables: fields : String[], type : BoatType, name : String,
+                         yearOfManufacture : short, makeAndModel : String, lengthInFeet : byte,
+                         purchasePrice : double
+        1. fields = csvData split at every CSV_SEPARATOR.
+        2. If the length of fields is not NUMBER_OF_CSV_FIELDS: throw an IllegalArgumentException
+           with the message "Boat data must have " NUMBER_OF_CSV_FIELDS " fields".
+        3. type              = BoatType.valueOf(fields[TYPE_FIELD] trimmed, in upper case)
+        4. name              = fields[NAME_FIELD] trimmed
+        5. yearOfManufacture = Short.parseShort(fields[YEAR_FIELD] trimmed)
+        6. makeAndModel      = fields[MAKE_AND_MODEL_FIELD] trimmed
+        7. lengthInFeet      = Byte.parseByte(fields[LENGTH_FIELD] trimmed)
+        8. purchasePrice     = Double.parseDouble(fields[PRICE_FIELD] trimmed)
+           (valueOf and the parse methods throw an IllegalArgumentException if a field is not
+           valid.)
+        9. Return a new Boat(type, name, yearOfManufacture, makeAndModel, lengthInFeet,
+           purchasePrice).
+
+    private static void processMenuOptions(Scanner keyboard, Fleet fleet)
+        Repeatedly gets a menu option and carries it out, until the user chooses to exit.
+        Local variable: optionLetter : char
+        1. Repeat:
+           1.1 optionLetter = getMenuOption(keyboard)
+           1.2 Switch on optionLetter:
+                   PRINT_OPTION     printFleet(fleet)
+                   ADD_OPTION       addBoat(keyboard, fleet)
+                   REMOVE_OPTION    removeBoat(keyboard, fleet)
+                   EXPENSE_OPTION   requestExpense(keyboard, fleet)
+               (EXIT_OPTION needs no case: it ends the loop.)
+           until optionLetter is EXIT_OPTION.
+
+    private static char getMenuOption(Scanner keyboard)
+        Displays the menu and reads the option chosen, asking again until it is one of the five
+        options. Returns the option as an upper case letter.
+        Local variable: optionLetter : char
+        1. Display a blank line.
+        2. optionLetter = getOptionLetter(keyboard)
+        3. While optionLetter is not PRINT_OPTION, ADD_OPTION, REMOVE_OPTION, EXPENSE_OPTION or
+           EXIT_OPTION:
+           3.1 Display "Invalid menu option, try again".
+           3.2 optionLetter = getOptionLetter(keyboard)
+        4. Return optionLetter.
+
+    private static char getOptionLetter(Scanner keyboard)
+        Displays the menu and reads the first letter of what the user types.
+        Local variables: optionTyped : String, optionLetter : char
+        1. optionTyped = getUserInput(keyboard, "(P)rint, (A)dd, (R)emove, (E)xpense, e(X)it")
+        2. optionLetter = NO_OPTION
+        3. If optionTyped is not empty: optionLetter = the first character of optionTyped,
+           converted to upper case.
+        4. Return optionLetter.
+
+    private static String getUserInput(Scanner keyboard, String prompt)
+        Displays a prompt and reads the line that the user types in answer. A whole line is read
+        because the names of boats can be made of several words.
+        1. Display prompt with PROMPT_FORMAT.
+        2. Return the next line of keyboard (nextLine), without the spaces before and after it
+           (trim).
+
+    private static void printFleet(Fleet fleet)
+        Prints the boat inventory.
+        1. Display a blank line.
+        2. Display fleet: the toString method of Fleet makes the fleet report.
+
+    private static void addBoat(Scanner keyboard, Fleet fleet)
+        Adds a boat to the fleet.
+        Local variable: csvData : String
+        1. csvData = getUserInput(keyboard, "Please enter the new boat CSV data")
+        2. fleet.addBoat(createBoat(csvData))
+        3. If createBoat throws an IllegalArgumentException in step 2, no boat is added and this
+           is displayed: "Invalid boat data, boat not added".
+
+    private static void removeBoat(Scanner keyboard, Fleet fleet)
+        Removes a boat from the fleet.
+        Local variable: boatName : String
+        1. boatName = getUserInput(keyboard, "Which boat do you want to remove?")
+        2. If fleet.removeBoat(boatName) is false: display BOAT_NOT_FOUND_MESSAGE followed by
+           boatName.
+
+    private static void requestExpense(Scanner keyboard, Fleet fleet)
+        Requests permission to spend money on a boat, subject to the Commodore's policy.
+        Local variables: boatName : String, boat : Boat, amount : double
+        1. boatName = getUserInput(keyboard, "Which boat do you want to spend on?")
+        2. boat = fleet.findBoat(boatName)
+        3. If boat is null: display BOAT_NOT_FOUND_MESSAGE followed by boatName.
+        4. Otherwise:
+           4.1 amount = Double.parseDouble(getUserInput(keyboard, "How much do you want to spend?"))
+           4.2 If boat.spend(amount) is true, display with two decimals:
+                   "Expense authorized, $" boat.getExpenses() " spent."
+           4.3 Otherwise display with two decimals:
+                   "Expense not permitted, only $" boat.getRemainingBudget() " left to spend."
+           4.4 If what is typed in step 4.1 is not a number (NumberFormatException), nothing is
+               spent and this is displayed: "Invalid amount, nothing spent".
+
+    private static void displayExitMessage()
+        1. Display a blank line.
+        2. Display "Exiting the Fleet Management System".
+
+
+7. FILES
+----------------------------------------------------------------------------------------------------
+7.1 The CSV file - a text file, read at the start of an initialising run
+
+    Name     Given as the first command line parameter, for example FleetData.csv.
+    Content  One line for each boat. A line has NUMBER_OF_CSV_FIELDS (6) fields separated by
+             CSV_SEPARATOR (a comma):
+
+                 position   constant               field                  example
+                 --------   --------------------   --------------------   -----------
+                 0          TYPE_FIELD             type of boat           POWER
+                 1          NAME_FIELD             name                   Big Brother
+                 2          YEAR_FIELD             year of manufacture    2019
+                 3          MAKE_AND_MODEL_FIELD   make/model             Mako
+                 4          LENGTH_FIELD           length in feet         20
+                 5          PRICE_FIELD            purchase price         12989.56
+
+                 POWER,Big Brother,2019,Mako,20,12989.56
+
+    Read     As a text file, with a BufferedReader on a FileReader, one line at a time with
+             readLine, until readLine returns null.
+    Closed   In a finally block of loadFleetFromCsvFile.
+
+7.2 FleetData.db - an object file, written when the user exits and read at the start of a normal
+    run
+
+    Name     DB_FILE_NAME
+    Content  One object in serialized form: the Fleet. Its ArrayList and all its Boat objects,
+             with their expenses, are saved with it because Fleet and Boat are Serializable.
+    Written  With an ObjectOutputStream on a FileOutputStream, by one call of writeObject.
+    Read     With an ObjectInputStream on a FileInputStream, by one call of readObject.
+    Closed   In a finally block of saveFleetToDbFile and of loadFleetFromDbFile.
+
+
+8. WHAT THE USER SEES
+----------------------------------------------------------------------------------------------------
+8.1 Prompts
+
+    Every prompt is displayed with PROMPT_FORMAT: the prompt in PROMPT_WIDTH (44) columns, then a
+    colon and a space. What the user types therefore always starts in the same column.
+
+        (P)rint, (A)dd, (R)emove, (E)xpense, e(X)it : W
+        Please enter the new boat CSV data          : SAILING,Finesse,1974,Tartan,34,9200.50
+        Which boat do you want to remove?           : Lost Soul
+        Which boat do you want to spend on?         : Moon Glow
+        How much do you want to spend?              : 3456.78
+
+8.2 The fleet report
+
+        Fleet report:
+            POWER   Big Brother          2019 Mako        20' : Paid $ 12989.56 : Spent $     0.00
+            SAILING Moon Glow            1973 Bristol     30' : Paid $  5500.00 : Spent $     0.00
+            SAILING Osita                1988 Tartan      40' : Paid $ 11500.07 : Spent $     0.00
+            POWER   Rescue II            2016 Zodiac      12' : Paid $  8900.00 : Spent $     0.00
+            Total                                             : Paid $ 38889.63 : Spent $     0.00
+
+    The first line is REPORT_TITLE. Every other line is REPORT_LINE_START followed by a line
+    formatted with REPORT_LINE_FORMAT:
+
+        a description, left-justified in DESCRIPTION_WIDTH (49) columns
+        " : Paid $"   and an amount with 2 decimals, right-justified in 9 columns (%9.2f)
+        " : Spent $"  and an amount with 2 decimals, right-justified in 9 columns (%9.2f)
+
+    The description of a boat is formatted with DESCRIPTION_FORMAT:
+
+        %-7s     the type, left-justified in 7 columns
+        %-20s    the name, left-justified in 20 columns
+        %4d      the year of manufacture, in 4 columns
+        %-10s    the make/model, left-justified in 10 columns
+        %3d'     the length in feet, right-justified in 3 columns, then the foot mark '
+
+    With the spaces between the items and the foot mark, a description has 7 + 1 + 20 + 1 + 4 +
+    1 + 10 + 1 + 3 + 1 = 49 characters, which is DESCRIPTION_WIDTH. The description of the last
+    line is TOTAL_LABEL, and its amounts are the totals of the fleet.
+
+8.3 Messages
+
+        Welcome to the Fleet Management System      at the start of the program, with a line of
+        --------------------------------------      dashes under it
+        Invalid menu option, try again              the option typed is not in the menu
+        Cannot find boat Lost Soul                  no boat has the name typed (remove or expense)
+        Expense authorized, $3456.78 spent.         with the total spent on the boat so far
+        Expense not permitted, only $43.22 left to spend.
+                                                    with the amount that may still be spent
+        Exiting the Fleet Management System         at the end of the program
+
+8.4 Blank lines
+
+    A blank line is displayed before the menu (but not when the menu is displayed again after an
+    invalid option), before the fleet report and before the exit message.
+
+
+9. ERROR CASES
+----------------------------------------------------------------------------------------------------
+  Case                                            What the program does
+  ----------------------------------------------  --------------------------------------------------
+  The option typed is not P, A, R, E or X (in     Displays "Invalid menu option, try again" and
+  upper or lower case), or nothing is typed       offers the menu again.
+  The boat to remove is not in the fleet          Displays "Cannot find boat " and the name typed.
+  The boat to spend on is not in the fleet        Displays "Cannot find boat " and the name typed.
+                                                  The amount is not asked.
+  The expense breaks the Commodore's policy       Displays "Expense not permitted, only $... left
+                                                  to spend." Nothing is spent.
+
+The assignment says that the user enters reasonable values. The next cases are handled all the
+same, so that the program does not stop because of a typing mistake or a missing file:
+
+  The data typed for a new boat is not valid      Displays "Invalid boat data, boat not added".
+  (a field is missing, or the type or a number
+  is not valid)
+  The amount typed is not a number                Displays "Invalid amount, nothing spent".
+  A file cannot be read or written (for example   Displays "ERROR: Cannot read or write the fleet
+  a normal run when there is no FleetData.db      data: " and the reason, then the exit message.
+  yet)
+  FleetData.db does not hold a fleet              Displays "ERROR: FleetData.db does not hold a
+                                                  fleet: " and the reason, then the exit message.
